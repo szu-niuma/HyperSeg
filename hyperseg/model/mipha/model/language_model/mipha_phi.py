@@ -5,8 +5,7 @@ import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 
-from transformers import AutoConfig, AutoModelForCausalLM, \
-    PhiModel, PhiPreTrainedModel
+from transformers import AutoConfig, AutoModelForCausalLM, PhiModel, PhiPreTrainedModel
 
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from ..mipha_arch import MiphaMetaModel, MiphaMetaForCausalLM
@@ -17,6 +16,10 @@ logger = logging.get_logger(__name__)
 
 
 class MiphaPhiModel(MiphaMetaModel, PhiModel):
+    """
+    使用大语言模型Phi
+    """
+
     config_class = MiphaPhiConfig
 
     def __init__(self, config):
@@ -24,6 +27,10 @@ class MiphaPhiModel(MiphaMetaModel, PhiModel):
 
 
 class MiphaPhiForCausalLM(PhiPreTrainedModel, MiphaMetaForCausalLM):
+    """
+    PhiPreTrainedModel 和 MiphaMetaForCausalLM 是基类，提供了预训练模型和元信息处理的功能。
+    """
+
     config_class = MiphaPhiConfig
     _tied_weights_keys = ["lm_head.weight"]
 
@@ -39,26 +46,25 @@ class MiphaPhiForCausalLM(PhiPreTrainedModel, MiphaMetaForCausalLM):
         return self.model
 
     def forward(
-            self,
-            input_ids: torch.LongTensor = None,
-            attention_mask: Optional[torch.Tensor] = None,
-            past_key_values: Optional[List[torch.FloatTensor]] = None,
-            inputs_embeds: Optional[torch.FloatTensor] = None,
-            labels: Optional[torch.LongTensor] = None,
-            use_cache: Optional[bool] = None,
-            output_attentions: Optional[bool] = None,
-            output_hidden_states: Optional[bool] = None,
-            images: Optional[torch.FloatTensor] = None,
-            return_dict: Optional[bool] = None,
+        self,
+        input_ids: torch.LongTensor = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        past_key_values: Optional[List[torch.FloatTensor]] = None,
+        inputs_embeds: Optional[torch.FloatTensor] = None,
+        labels: Optional[torch.LongTensor] = None,
+        use_cache: Optional[bool] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        images: Optional[torch.FloatTensor] = None,
+        return_dict: Optional[bool] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
+        output_hidden_states = output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         input_ids, attention_mask, past_key_values, inputs_embeds, labels = self.prepare_inputs_labels_for_multimodal(
-            input_ids, attention_mask, past_key_values, labels, images)
+            input_ids, attention_mask, past_key_values, labels, images
+        )
 
         # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
         outputs = self.model(
@@ -69,7 +75,7 @@ class MiphaPhiForCausalLM(PhiPreTrainedModel, MiphaMetaForCausalLM):
             use_cache=use_cache,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
-            return_dict=return_dict
+            return_dict=return_dict,
         )
 
         hidden_states = outputs[0]
@@ -92,8 +98,7 @@ class MiphaPhiForCausalLM(PhiPreTrainedModel, MiphaMetaForCausalLM):
         if not return_dict:
             output = (logits,) + outputs[1:]
             return (loss,) + output if loss is not None else output
-        
-        
+
         return CausalLMOutputWithPast(
             loss=loss,
             logits=logits,
@@ -102,9 +107,7 @@ class MiphaPhiForCausalLM(PhiPreTrainedModel, MiphaMetaForCausalLM):
             attentions=outputs.attentions,
         )
 
-    def prepare_inputs_for_generation(
-            self, input_ids, past_key_values=None, attention_mask=None, inputs_embeds=None, **kwargs
-    ):
+    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, attention_mask=None, inputs_embeds=None, **kwargs):
         if past_key_values:
             input_ids = input_ids[:, -1:]
 
