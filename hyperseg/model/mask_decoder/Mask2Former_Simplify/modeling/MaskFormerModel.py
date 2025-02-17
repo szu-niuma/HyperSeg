@@ -12,7 +12,6 @@
 
 # here put the import lib
 from torch import nn
-from addict import Dict
 
 from .backbone.resnet import ResNet, resnet_spec
 from .backbone.swin import D2SwinTransformer
@@ -95,7 +94,7 @@ class MaskFormerModel(nn.Module):
             # backbone.init_weights()
             self.backbone_feature_shape = {}
             for i, channel in enumerate(channels):
-                self.backbone_feature_shape[f"res{i+2}"] = Dict({"channel": channel, "stride": 2 ** (i + 2)})
+                self.backbone_feature_shape[f"res{i+2}"] = {"channel": channel, "stride": 2 ** (i + 2)}
         elif model_type == "swin":
             swin_depth = {"tiny": [2, 2, 6, 2], "small": [2, 2, 18, 2], "base": [2, 2, 18, 2], "large": [2, 2, 18, 2]}
             swin_heads = {"tiny": [3, 6, 12, 24], "small": [3, 6, 12, 24], "base": [4, 8, 16, 32], "large": [6, 12, 24, 48]}

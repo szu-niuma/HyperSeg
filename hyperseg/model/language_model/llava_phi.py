@@ -1,5 +1,4 @@
 from typing import List, Optional, Tuple, Union
-from addict import Dict
 from dataclasses import dataclass
 import torch.nn.functional as F
 import fvcore.nn.weight_init as weight_init
@@ -144,10 +143,19 @@ class HyperSegModel(MiphaPhiModel):
 class HyperSeg(MiphaPhiForCausalLM):
     # config_class = LlavaConfig
 
-    def __init__(self, config, mask_decoder_cfg=None, cur_vocab_size=None, add_cross_attn=True, cross_attn_index=None):
+    def __init__(
+        self,
+        config,
+        mask_decoder_cfg=None,
+        cur_vocab_size=None,
+        add_cross_attn=True,
+        cross_attn_index=None,
+        *args,
+        **kwargs,
+    ):
         super().__init__(config)
-
         self.model = HyperSegModel(config, mask_decoder_cfg)
+
         self.init_config = config
         self.mask_decoder_cfg = mask_decoder_cfg
         self.cross_attn_index = cross_attn_index
@@ -388,7 +396,7 @@ class HyperSeg(MiphaPhiForCausalLM):
         }
         backbone_feature_shape = dict()
         for name in out_features:
-            backbone_feature_shape[name] = Dict({"channel": out_feature_channels[name], "stride": out_feature_strides[name]})
+            backbone_feature_shape[name] = {"channel": out_feature_channels[name], "stride": out_feature_strides[name]}
         return backbone_feature_shape
 
     def get_encoder_image(self, images):
@@ -518,16 +526,27 @@ class HyperSeg(MiphaPhiForCausalLM):
         temporal_query=None,
         temporal_query_mask=None,
     ):
+        # Token定位
         image_token_indices = torch.where(input_id == IMAGE_TOKEN_INDEX)[0]
         seg_query_indices = torch.where(input_id == SEG_TOKEN_INDEX)[0]
         cls_token_indices = torch.where(input_id == CLS_TOKEN_INDEX)[0]
         region_token_indices = torch.where(input_id == REGION_TOKEN_INDEX)[0]
+
+        # 输入验证
         assert len(image_token_indices) == 1, "not supporting multi image index"
         # assert len(seg_query_indices) == 1, 'not supporting multi seg index'
         if class_name_embedding_indices is not None:
             assert len(cls_token_indices) == len(class_embed), "the number of <cls> tokens and class_embed needs to be same"
         if region_feature_list is not None:
             assert len(region_feature_list) == len(region_token_indices), "the munber of <region> tokens and regions needs to be same"
+
+        # 特征拼接处理
+        # 根据不同类型的 token（图像、分割、类别等）进行相应的特征拼接
+        # 处理每个 token 对应的掩码和标签信息
+        # cur_new_input_embeds = []        # 存储拼接后的输入嵌入
+        # cur_new_seg_query_mask = []      # 存储分割查询掩码
+        # cur_new_label = []               # 存储标签
+        # cur_class_name_embedding_indices = [] # 存储类别名称嵌入索引
         cur_new_input_embeds = []
         cur_new_seg_query_mask = []
         if label is not None:
@@ -537,7 +556,6 @@ class HyperSeg(MiphaPhiForCausalLM):
             cur_new_label = None
         cur_class_name_embedding_indices = [] if class_name_embedding_indices is not None else None
         cur_refer_embedding_indices = [] if refer_embedding_indices is not None else None
-
         if region_embedding_mask is not None:
             enable_region_mask = True
             cur_new_region_embedding_mask = []
@@ -551,9 +569,10 @@ class HyperSeg(MiphaPhiForCausalLM):
         else:
             enable_temporal_mask = False
             cur_new_temporal_query_mask = None
+
+        # 分块处理
         chunks = []
         current_chunk = []
-
         for id in input_id:
             if id >= 0:
                 current_chunk.append(id.item())
@@ -565,6 +584,7 @@ class HyperSeg(MiphaPhiForCausalLM):
         if current_chunk:
             chunks.append(torch.tensor(current_chunk, device=input_id.device))
 
+        # 处理不同类型的Token
         cls_idx = 0
         region_idx = 0
         for chunk in chunks:
@@ -732,13 +752,13 @@ class HyperSeg(MiphaPhiForCausalLM):
             cur_new_temporal_query_mask = torch.cat(cur_new_temporal_query_mask, dim=0)
 
         return (
-            cur_new_input_embeds,
-            cur_new_label,
-            cur_new_seg_query_mask,
-            cur_new_temporal_query_mask,
-            cur_class_name_embedding_indices,
-            cur_new_region_embedding_mask,
-            cur_refer_embedding_indices,
+            cur_new_input_embeds,  # 拼接后的输入嵌入
+            cur_new_label,  # 处理后的标签
+            cur_new_seg_query_mask,  # 分割查询掩码
+            cur_new_temporal_query_mask,  # 时序查询掩码
+            cur_class_name_embedding_indices,  # 类别名称嵌入索引
+            cur_new_region_embedding_mask,  # 区域嵌入掩码
+            cur_refer_embedding_indices,  # 引用嵌入索引
         )
 
     def prepare_inputs_labels_for_multimodal(
@@ -758,6 +778,28 @@ class HyperSeg(MiphaPhiForCausalLM):
         region_features=None,
         temporal_query=None,
     ):
+        """
+        数据预处理:
+            - 处理输入的文本(input_ids)和图像(images)
+            - 生成相应的嵌入向量(embeddings)和注意力掩码(attention mask)
+            - 处理各种特殊类型的 token,如图像 token、分割 token、类别 token等
+
+        特征提取与融合:
+            - 通过视觉编码器提取图像特征
+            - 提取区域特征(region features)用于实例分割
+            - 将文本嵌入和图像特征进行拼接
+
+        处理各种模态的标记:
+            - 处理分割查询掩码(seg_query_mask)
+            - 处理类别名称嵌入索引(class_name_embedding_indices)
+            - 处理区域嵌入掩码(region_embedding_masks)
+            - 处理引用嵌入索引(refer_embedding_indices)
+
+        数据对齐:
+            - 将不同长度的样本对齐到相同维度
+            - 使用 padding 补齐较短的序列
+            - 确保所有 batch 中的样本具有相同的维度
+        """
         vision_tower = self.get_vision_tower()
 
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
@@ -1073,6 +1115,8 @@ class HyperSeg(MiphaPhiForCausalLM):
         """
         为多模态输入（文本和图像）准备输入数据和标签，以便输入到多模态模型中。
         它处理的是结合文本和图像的输入，并生成相应的嵌入（embeddings），标签（labels），以及注意力掩码（attention mask）。
+        # 1. label -> embedding
+        # 2. loss function
         """
         vision_tower = self.get_vision_tower()
         if not (vision_tower and images and input_ids.shape[1] > 1):
@@ -1280,10 +1324,13 @@ class HyperSeg(MiphaPhiForCausalLM):
             if i == 0:
                 continue  # del res2 feat
             i -= 1
+            # 处理不同尺度的图像特征
             local_vision.append(self.local_project[i](local_img_features).flatten(2) + self.level_embed.weight[i][None, :, None])
             local_vision[-1] = local_vision[-1].permute(0, 2, 1)
-
+            
+        # 利用 mgvp_layers 处理时序查询和视觉特征
         cur_temporal_query = self.mgvp_layers(latents=cur_temporal_query, x=local_vision)
+        # 投影到所需的维度空间
         cur_temporal_query = self.expanded_seg_query_project(cur_temporal_query)
 
         return cur_temporal_query
@@ -1332,9 +1379,11 @@ class HyperSeg(MiphaPhiForCausalLM):
         use_temporal_query=False,
         cur_temporal_query=None,
     ):
+        # 表示模型是否处于全景分割(panoptic segmentation)模式
         if self.panoptic_on:
             assert is_thing_list is not None, "is_thing_list need to be given"
             self.is_thing_list = is_thing_list
+
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -1349,13 +1398,16 @@ class HyperSeg(MiphaPhiForCausalLM):
         else:
             instances = None
 
+        # 获取图像编码特征(Vanilla Encoder)
         image_features = self.get_vision_tower_feature(images[:, 0])
 
         bs = input_ids.shape[0]
         # 100 * 2560 -->> bs * 100 * 2560
         expanded_seg_query = self.seg_query.unsqueeze(0).expand(bs, -1, -1)
 
+        # 获取FVP特征
         if self.enable_mgvp_seg_query:
+            # 扩展时序查询到批次大小
             if cur_temporal_query is None:
                 cur_temporal_query = self.temporal_query.unsqueeze(0).expand(bs, -1, -1)  # sequential temporal_query between each frame
             cur_temporal_query = self.get_fvp_feat(cur_temporal_query, image_features)
@@ -1593,7 +1645,7 @@ class HyperSeg(MiphaPhiForCausalLM):
         else:
             SEG_embedding = None
 
-        #TODO: 作者这边损失函数代码还没公开 
+        # TODO: 作者这边损失函数代码还没公开
         loss = None
         if "mm_conv" in batch_dataset_type and labels is None:
             return CausalOutputWithMask(

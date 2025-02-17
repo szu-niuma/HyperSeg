@@ -13,7 +13,6 @@
 # here put the import lib
 import torch
 import torch.nn as nn
-from addict import Dict
 import torch.utils.model_zoo as model_zoo
 
 BN_MOMENTUM = 0.1

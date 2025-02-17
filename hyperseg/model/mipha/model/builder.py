@@ -2,46 +2,49 @@ import os
 import warnings
 import shutil
 
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig, BitsAndBytesConfig, \
-    CLIPImageProcessor, SiglipImageProcessor, BitImageProcessor
+from transformers import (
+    AutoTokenizer,
+    AutoModelForCausalLM,
+    AutoConfig,
+    BitsAndBytesConfig,
+    CLIPImageProcessor,
+    SiglipImageProcessor,
+    BitImageProcessor,
+)
 import torch
 from mipha.model import *
 from mipha.constants import DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 
 
-def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, load_4bit=False, device_map="cuda",
-                          device="cuda"):
+def load_pretrained_model(
+    model_path,
+    model_base,
+    model_name,
+    load_8bit=False,
+    load_4bit=False,
+    device_map="cuda",
+    device="cuda",
+):
     kwargs = {"device_map": device_map}
     if load_8bit:
-        kwargs['load_in_8bit'] = True
+        kwargs["load_in_8bit"] = True
     elif load_4bit:
-        kwargs['load_in_4bit'] = True
-        kwargs['quantization_config'] = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.float16,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type='nf4'
+        kwargs["load_in_4bit"] = True
+        kwargs["quantization_config"] = BitsAndBytesConfig(
+            load_in_4bit=True, bnb_4bit_compute_dtype=torch.float16, bnb_4bit_use_double_quant=True, bnb_4bit_quant_type="nf4"
         )
     else:
-        kwargs['torch_dtype'] = torch.float16
+        kwargs["torch_dtype"] = torch.float16
     print("load model from model_path: ", model_path)
     tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
     if "phi" in model_name.lower():
         print("load Mipha-Phi MSLM!!!")
         config = MiphaPhiConfig.from_pretrained(model_path, trust_remote_code=True)
-        model = MiphaPhiForCausalLM.from_pretrained(
-            model_path,
-            config=config,
-            use_safetensors=True,
-            **kwargs).to("cuda")
+        model = MiphaPhiForCausalLM.from_pretrained(model_path, config=config, use_safetensors=True, **kwargs).to("cuda")
     elif "gemma" in model_name.lower():
         print("load Mipha-Gemma MSLM!!!")
         config = MiphaGemmaConfig.from_pretrained(model_path, trust_remote_code=True)
-        model = MiphaGemmaForCausalLM.from_pretrained(
-            model_path,
-            config=config,
-            use_safetensors=True,
-            **kwargs).to("cuda")
+        model = MiphaGemmaForCausalLM.from_pretrained(model_path, config=config, use_safetensors=True, **kwargs).to("cuda")
     else:
         raise ValueError(f"Unknown model name: {model_name}")
 
@@ -54,7 +57,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
     else:
         return NotImplementedError
 
-    if 'phi' or "gemma" in model_name.lower():
+    if "phi" or "gemma" in model_name.lower():
         mm_use_im_start_end = getattr(model.config, "mm_use_im_start_end", False)
         mm_use_im_patch_token = getattr(model.config, "mm_use_im_patch_token", True)
 

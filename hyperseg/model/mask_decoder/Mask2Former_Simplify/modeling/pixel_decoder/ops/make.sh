@@ -9,5 +9,5 @@
 
 # Copyright (c) Facebook, Inc. and its affiliates.
 # Modified by Bowen Cheng from https://github.com/fundamentalvision/Deformable-DETR
-
+export TORCH_CUDA_ARCH_LIST="8.0"
 python setup.py build install

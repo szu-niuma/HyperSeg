@@ -9,7 +9,6 @@
 # Modified by Bowen Cheng from https://github.com/SwinTransformer/Swin-Transformer-Semantic-Segmentation/blob/main/mmseg/models/backbones/swin_transformer.py
 
 import numpy as np
-from addict import Dict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -760,7 +759,7 @@ class D2SwinTransformer(SwinTransformer):
     def output_shape(self):
         backbone_feature_shape = dict()
         for name in self._out_features:
-                backbone_feature_shape[name] = Dict({'channel': self._out_feature_channels[name], 'stride': self._out_feature_strides[name]})
+                backbone_feature_shape[name] = {'channel': self._out_feature_channels[name], 'stride': self._out_feature_strides[name]}
         return backbone_feature_shape
     
     @property

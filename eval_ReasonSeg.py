@@ -201,19 +201,19 @@ class DataArguments:
     lora_bias: str = "none"
 
     vision_tower: str = "google/siglip-so400m-patch14-384"
-    vision_tower_mask: str = "../pretrained_model/mask2former/maskformer2_swin_base_IN21k_384_bs16_50ep.pkl"
+    vision_tower_mask: str = "./pretrained_model/mask2former/maskformer2_swin_base_IN21k_384_bs16_50ep.pkl"
 
     lazy_preprocess: bool = False
     is_multimodal: bool = False
     # model_path: Optional[str] = field(default="../model/HyperSeg-3B")
     model_path: Optional[str] = field(default="zhumj34/Mipha-3B")
-    mask_config: Optional[str] = field(default="../hyperseg/model/mask_decoder/mask_config/maskformer2_swin_base_384_bs16_50ep.yaml")
+    mask_config: Optional[str] = field(default="./hyperseg/model/mask_decoder/mask_config/maskformer2_swin_base_384_bs16_50ep.yaml")
     image_aspect_ratio: str = "square"
     image_grid_pinpoints: Optional[str] = field(default=None)
 
     model_map_name: str = "HyperSeg"
     version: str = "llava_phi"
-    output_dir: str = "../output/reasonseg"
+    output_dir: str = "./output/reasonseg"
     segmentation: bool = True
     eval_batch_size: int = 1
     dataloader_num_workers: int = 8
@@ -227,7 +227,7 @@ class DataArguments:
     visualize: bool = True
 
     # reason seg
-    reason_path: str = "../dataset/ReasonSeg"
+    reason_path: str = "./dataset/ReasonSeg"
     reason_seg_data: str = "ReasonSeg|val"
     explanatory: float = -1
 
@@ -266,7 +266,7 @@ def evaluation():
     )
 
     device = torch.device(data_args.local_rank if torch.cuda.is_available() else "cpu")
-    model.to(dtype=torch.float32, device=device)
+    # model.to(dtype=torch.float32, device=device)
 
     data_args.image_processor = image_processor
     data_args.is_multimodal = True
